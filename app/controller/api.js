@@ -2,10 +2,35 @@
 var request = require('request');
 var properties = require('../config/properties.js');
 var googleMapsClient = require('../api_clients/googleMapsClient.js');
+var Wit = require('node-wit').Wit;
+//var interactive = require('node-wit').interactive;
 
 // models for users and the memories/reminders they submit
 var user = require('../model/user');
 var remember = require('../model/messages');
+
+// Wit AI
+var witClient = new Wit({
+  accessToken: properties.wit_ai_server_access,
+  actions: {
+    send(request, response) {
+      return new Promise(function(resolve, reject) {
+        const {sessionId, context, entities} = request;
+        const {text, quickreplies} = response;
+        console.log('user said...', request.text);
+        console.log('sending...', JSON.stringify(response.text));
+        console.log('quick response...', JSON.stringify(response.quickreplies));
+        sendTextMessage(sessionId, response.text);
+        return resolve();
+      });
+    },
+    setLocationWit({context, entities}) {
+      console.log(`Wit extracted ${JSON.stringify(entities)}`);
+      setLocation();
+      return Promise.resolve(context);
+    }
+  },
+});
 
 // check token for connecting to facebook webhook
 exports.tokenVerification = function(req, res) {
@@ -28,7 +53,6 @@ exports.handleMessage = function(req, res) {
 		sender = event.sender.id;
     if (event.message && event.message.text) {
 		  	text = event.message.text;
-
 		  	// Handle a text message from this sender
         switch(text) {
           case "location":
@@ -50,7 +74,8 @@ exports.handleMessage = function(req, res) {
             setLocation(sender)
             break;
           default: {
-            sendTextMessage(sender, text)
+            //intentConfidence(text);
+            witResponse(sender, text);
           }
         }
   		}
@@ -78,6 +103,25 @@ function sendTextMessage(recipientId, messageText) {
     }
   };
   callSendAPI(messageData);
+}
+
+// fetch wits response
+function witResponse(recipientId, message) {
+  witClient.runActions(recipientId, message, {})
+  .then((data) => {
+    console.log(JSON.stringify(data));
+  })
+  .catch(console.error);
+}
+
+// check wit.ai's confidence for the intent
+function intentConfidence(message) {
+  witClient.message(message, {})
+  .then((data) => {
+    console.log(JSON.stringify(data));
+    var confidence = JSON.stringify(data.entities.intent[0].confidence);
+    console.log("Confidence score " + confidence);
+  }).catch(console.error);
 }
 
 /* Save a user to the database */
@@ -142,8 +186,9 @@ function setLocation(sender) {
       var lat = coordinates.lat;
       var lng = coordinates.lng;
       console.log(coordinates);
-      sendTextMessage(sender, "I think I found your location " + lat + " " + lng);
-      sendTextMessage(sender, "done that for you");
+      return coordinates;
+      //sendTextMessage(sender, "I think I found your location " + lat + " " + lng);
+      //sendTextMessage(sender, "done that for you");
     }
   });
 }

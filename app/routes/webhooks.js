@@ -7,4 +7,4 @@ var router = express.Router();
 router.get('/', apiController.tokenVerification);
 router.post('/', apiController.handleMessage);
 
-module.exports = router
+module.exports = router;
