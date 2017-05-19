@@ -9,3 +9,6 @@ exports.google_maps_api = 'AIzaSyBUTELYTrlYEYbYaHjUiKtz5UcPXegaXlw';
 // Wit.ai token
 exports.wit_ai_app_id = '58fcf92b-0482-4ea3-96c0-2042789417f3';
 exports.wit_ai_server_access = 'SW6U6LVGVN5LG2SROH5XNH67PONRIQ7M';
+
+//MongoDB Atlas
+exports.atlas = 'mongodb://RogerTheShrubber:Collins1@forget-me-not-development-shard-00-00-dctrt.mongodb.net:27017,forget-me-not-development-shard-00-01-dctrt.mongodb.net:27017,forget-me-not-development-shard-00-02-dctrt.mongodb.net:27017/<DATABASE>?ssl=true&replicaSet=forget-me-not-development-shard-0&authSource=admin';
