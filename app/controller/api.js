@@ -7,7 +7,11 @@ var Wit = require('node-wit').Wit;
 
 // models for users and the memories/reminders they submit
 var user = require('../model/user');
-var remember = require('../model/messages');
+var timeMemory = require('../model/timeBasedMemory');
+
+// user information global variable
+var first_name = "";
+var id = "";
 
 // Wit AI
 var witClient = new Wit({
@@ -24,9 +28,15 @@ var witClient = new Wit({
         return resolve();
       });
     },
-    setLocationWit({context, entities}) {
+    setLocationWit({sessionId, context, entities}) {
       console.log(`Wit extracted ${JSON.stringify(entities)}`);
       setLocation();
+      return Promise.resolve(context);
+    },
+    userLocationWit({sessionId, context, text, entities}) {
+      userLocation(sessionId);
+      console.log(`Session ${sessionId} received ${text}`);
+      console.log(`Wit extracted ${JSON.stringify(entities)}`);
       return Promise.resolve(context);
     }
   },
@@ -44,6 +54,11 @@ exports.tokenVerification = function(req, res) {
   }
 }
 
+/* Get user information */
+exports.fbInformation = function() {
+
+}
+
 /* Recieve request */
 exports.handleMessage = function(req, res) {
   messaging_events = req.body.entry[0].messaging;
@@ -58,20 +73,29 @@ exports.handleMessage = function(req, res) {
           case "location":
             setTimeZone(sender)
             break;
-          case "/subscribe":
+          case "subscribe":
             subscribeUser(sender)
             break;
-          case "/unsubscribe":
-            sendTextMessage(sender, "unsubscribe")
+          case "unsubscribe":
+            unsubscribeUser(sender)
             break;
-          case "/subscribestatus":
-            sendTextMessage(sender, "subscribestatus")
+          case "subscribestatus":
+            subscribeStatus(sender)
             break;
-          case "whats my id":
-            sendTextMessage(sender, "your id is "+sender)
+          case "test memory":
+            newTimeBasedMemory(sender)
+            break;
+          case "test return memory":
+            returnTimeMemory(sender)
             break;
           case "set timezone":
             setLocation(sender)
+            break;
+          case "whats my time zone":
+            userLocation(sender)
+            break;
+          case "test this":
+            updateUserLocation(sender, "Bristol")
             break;
           default: {
             //intentConfidence(text);
@@ -81,62 +105,6 @@ exports.handleMessage = function(req, res) {
   		}
     }
 	res.sendStatus(200);
-}
-
-function receivedMessage(event) {
-  // Putting a stub for now, we'll expand it in the following steps
-  console.log("Message data: ", event.message);
-}
-
-function sendGenericMessage(recipientId, messageText) {
-  // To be expanded in later sections
-}
-
-/* function sends message back to user */
-function sendTextMessage(recipientId, messageText) {
-  var messageData = {
-    recipient: {
-      id: recipientId
-    },
-    message: {
-      text: messageText
-    }
-  };
-  callSendAPI(messageData);
-}
-
-// fetch wits response
-function witResponse(recipientId, message) {
-  witClient.runActions(recipientId, message, {})
-  .then((data) => {
-    console.log(JSON.stringify(data));
-  })
-  .catch(console.error);
-}
-
-// check wit.ai's confidence for the intent
-function intentConfidence(message) {
-  witClient.message(message, {})
-  .then((data) => {
-    console.log(JSON.stringify(data));
-    var confidence = JSON.stringify(data.entities.intent[0].confidence);
-    console.log("Confidence score " + confidence);
-  }).catch(console.error);
-}
-
-/* Save a user to the database */
-function subscribeUser(id) {
-  var newUser = new user({
-    fb_id: id,
-  });
-  user.findOneAndUpdate({fb_id: newUser.fb_id}, {fb_id: newUser.fb_id}, {upsert:true}, function(err, user) {
-    if (err) {
-      sendTextMessage(id, "There was error subscribing you for daily articles");
-    } else {
-      console.log('User saved successfully!');
-      sendTextMessage(newUser.fb_id, "You've been subscribed!")
-    }
-  });
 }
 
 /* being able to send the message */
@@ -160,6 +128,177 @@ function callSendAPI(messageData) {
   });
 }
 
+function receivedMessage(event) {
+  // Putting a stub for now, we'll expand it in the following steps
+  console.log("Message data: ", event.message);
+}
+
+function sendGenericMessage(recipientId, messageText) {
+  // Bot didnt know what to do with message from user
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    message: {
+      text: "I'm sorry I didn't quite understand that, I'm still learning though!"
+    }
+  };
+  callSendAPI(messageData);
+}
+
+/* function sends message back to user */
+function sendTextMessage(recipientId, messageText) {
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    message: {
+      text: messageText
+    }
+  };
+  callSendAPI(messageData);
+}
+
+
+// ------------Wit Code Below--------------- //
+// fetch wits response
+function witResponse(recipientId, message) {
+  witClient.runActions(recipientId, message, {})
+  .then((data) => {
+    //console.log(JSON.stringify(data));
+  })
+  .catch(console.error);
+}
+
+// check wit.ai's confidence for the intent
+function intentConfidence(message) {
+  witClient.message(message, {})
+  .then((data) => {
+    console.log(JSON.stringify(data));
+    var confidence = JSON.stringify(data.entities.intent[0].confidence);
+    console.log("Confidence score " + confidence);
+  }).catch(console.error);
+}
+// -------------------------------------------- //
+
+// ------------User Code Below---------------- //
+/* Save a user to the database */
+function subscribeUser(id) {
+  var newUser = new user({
+    fb_id: id,
+    location: "placeholder"
+  });
+  user.findOneAndUpdate(
+    {fb_id: newUser.fb_id},
+    {fb_id: newUser.fb_id, location: newUser.location},
+    {upsert:true}, function(err, user) {
+      if (err) {
+        sendTextMessage(id, "There was error subscribing you");
+      } else {
+        console.log('User saved successfully!');
+        sendTextMessage(newUser.fb_id, "You've been subscribed!")
+      }
+  });
+}
+
+/* remove user from database */
+function unsubscribeUser(id) {
+  // built in remove method to remove user from db
+  user.findOneAndRemove({fb_id: id}, function(err, user) {
+    if (err) {
+      sendTextMessage(id, "There was an error unsubscribing you");
+    } else {
+      console.log("User successfully deleted");
+      sendTextMessage(id, "You've unsubscribed");
+    }
+  });
+}
+
+/* subscribed status */
+function subscribeStatus(id) {
+  user.findOne({fb_id: id}, function(err, user) {
+    subscribeStatus = false;
+    if (err) {
+      console.log(err);
+    } else {
+      if (user != null) {
+        subscribeStatus = true;
+      }
+      sendTextMessage(id, "Your status is " + subscribeStatus);
+    }
+  });
+}
+
+/* find the users location from the db */
+function userLocation(id) {
+  user.findOne({fb_id: id}, function(err, user) {
+    location = "";
+    if (err) {
+      console.log(err);
+    } else {
+      if (user != null) {
+        location = user.location;
+        console.log(location);
+        sendTextMessage(id, "We currently have your location set to " + location);
+      }
+    }
+  });
+}
+
+function updateUserLocation(id, newLocation) {
+  user.findOneAndUpdate({fb_id: id}, {location: newLocation}, function(err, user) {
+    if (err) {
+      console.log(err);
+    } else {
+      if (user != null) {
+        location = user.location;
+        console.log(location);
+        sendTextMessage(id, "Your location has been updated to " + newLocation);
+      }
+    }
+  });
+}
+// -------------------------------------------- //
+
+
+// -----------User Memory Code Below--------------- //
+function newTimeBasedMemory(id) {
+  var newTimeMemory = new timeMemory({
+    fb_id: id,
+    title: "WiFi",
+    value: "LetMeIn"
+  });
+  timeMemory.findOneAndUpdate(
+    {fb_id: newTimeMemory.fb_id},
+    {fb_id: newTimeMemory.fb_id, title: newTimeMemory.title, value: newTimeMemory.value},
+    {upsert:true}, function(err, user) {
+      if (err) {
+        sendTextMessage(id, "I couldn't remember that");
+      } else {
+        console.log('User memory successfully!');
+        sendTextMessage(newTimeMemory.fb_id, "I've now remembered that for you")
+      }
+  });
+}
+
+function returnTimeMemory(id) {
+  timeMemory.findOne({fb_id: id}, function(err, memory) {
+    if (err) {
+      console.log(err);
+    } else {
+      if (memory != null) {
+        title = memory.title;
+        value = memory.value;
+        console.log(title + " " + value);
+        sendTextMessage(id, "Your " + title + " password is " + value);
+      }
+    }
+  });
+}
+// -------------------------------------------- //
+
+
+// -----------Google API Code Below--------------- //
 /* query geolocation */
 function setTimeZone(sender) {
   // Fetch timezone from lat & long.
@@ -175,6 +314,7 @@ function setTimeZone(sender) {
     });
 }
 
+/* set the location for a user */
 function setLocation(sender) {
   var count = 0;
   // Fetch location
@@ -192,3 +332,4 @@ function setLocation(sender) {
     }
   });
 }
+// -------------------------------------------- //

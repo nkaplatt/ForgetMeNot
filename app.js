@@ -5,7 +5,7 @@ var favicon = require('serve-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
-var map = require('./app/config/properties.js'); 
+var map = require('./app/config/properties.js');
 
 var mongoose = require('mongoose');
 
@@ -18,7 +18,7 @@ var webhooks = require('./app/routes/webhooks');
 var app = express();
 
 // MongoDB database
-mongoose.connect(map.atlas);
+mongoose.connect('mongodb://localhost/ForgetMeTest');
 
 // view engine setup
 app.set('views', path.join(__dirname, 'app', 'views'));
