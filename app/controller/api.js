@@ -8,6 +8,7 @@ var Wit = require('node-wit').Wit;
 // models for users and the memories/reminders they submit
 var user = require('../model/user');
 var timeMemory = require('../model/timeBasedMemory');
+var keyValue = require('../model/rememberKeyValue');
 
 // user information global variable
 var first_name = "";
@@ -85,9 +86,6 @@ exports.handleMessage = function(req, res) {
           case "test memory":
             newTimeBasedMemory(sender)
             break;
-          case "test return memory":
-            returnTimeMemory(sender)
-            break;
           case "set timezone":
             setLocation(sender)
             break;
@@ -98,8 +96,8 @@ exports.handleMessage = function(req, res) {
             updateUserLocation(sender, "Bristol")
             break;
           default: {
-            //intentConfidence(text);
-            witResponse(sender, text);
+            intentConfidence(sender, text);
+            //witResponse(sender, text);
           }
         }
   		}
@@ -118,7 +116,7 @@ function callSendAPI(messageData) {
     if (!error && response.statusCode == 200) {
       var recipientId = body.recipient_id;
       var messageId = body.message_id;
-      console.log("Successfully sent generic message with id %s to recipient %s",
+      console.log("Successfully sent message with id %s to recipient %s",
       messageId, recipientId);
     } else {
       console.error("Unable to send message.");
@@ -133,7 +131,7 @@ function receivedMessage(event) {
   console.log("Message data: ", event.message);
 }
 
-function sendGenericMessage(recipientId, messageText) {
+function sendGenericMessage(recipientId) {
   // Bot didnt know what to do with message from user
   var messageData = {
     recipient: {
@@ -171,12 +169,54 @@ function witResponse(recipientId, message) {
 }
 
 // check wit.ai's confidence for the intent
-function intentConfidence(message) {
+function intentConfidence(sender, message) {
+  var intent = null;
   witClient.message(message, {})
   .then((data) => {
-    console.log(JSON.stringify(data));
-    var confidence = JSON.stringify(data.entities.intent[0].confidence);
-    console.log("Confidence score " + confidence);
+    console.log(JSON.stringify(data) + "\n");
+    try {
+      intent = JSON.stringify(data.entities.intent[0].value);
+      intent = intent.replace(/"/g, '');
+      var confidence = JSON.stringify(data.entities.intent[0].confidence);
+    } catch(err) {
+      console.log("no intent - send generic fail message");
+      sendGenericMessage(sender);
+    }
+    //console.log("Confidence score " + confidence);
+
+    if (intent != null) {
+      switch(intent) {
+        case "memory":
+        try {
+            var key = JSON.stringify(data.entities.subjectPair[0].value);
+            var value = JSON.stringify(data.entities.valuePair[0].value);
+            if (key != null && value != null) {
+              console.log("Trying to process reminder \n");
+              newKeyValue(sender, key, value);
+            } else {
+              console.log("I'm sorry but this couldn't be processed. \n");
+            }
+          } catch (err) {
+            sendGenericMessage(sender);
+          }
+          break;
+
+        case "recall":
+          console.log("this is a recall");
+          try {
+            var key = JSON.stringify(data.entities.recallSubject[0].value);
+            if (key != null) {
+              returnKeyValue(sender, key);
+            } else {
+              console.log("I'm sorry but this couldn't be processed. \n");
+            }
+          } catch (err) {
+            sendGenericMessage(sender);
+          }
+          break;
+
+      }
+    }
   }).catch(console.error);
 }
 // -------------------------------------------- //
@@ -265,12 +305,12 @@ function updateUserLocation(id, newLocation) {
 function newTimeBasedMemory(id) {
   var newTimeMemory = new timeMemory({
     fb_id: id,
-    title: "WiFi",
-    value: "LetMeIn"
+    subject: "WiFi",
+    value: "wifipassword"
   });
   timeMemory.findOneAndUpdate(
     {fb_id: newTimeMemory.fb_id},
-    {fb_id: newTimeMemory.fb_id, title: newTimeMemory.title, value: newTimeMemory.value},
+    {fb_id: newTimeMemory.fb_id, subject: newTimeMemory.subject, value: newTimeMemory.value},
     {upsert:true}, function(err, user) {
       if (err) {
         sendTextMessage(id, "I couldn't remember that");
@@ -287,10 +327,46 @@ function returnTimeMemory(id) {
       console.log(err);
     } else {
       if (memory != null) {
-        title = memory.title;
+        subject = memory.subject;
         value = memory.value;
-        console.log(title + " " + value);
-        sendTextMessage(id, "Your " + title + " password is " + value);
+        console.log(subject + " " + value);
+        sendTextMessage(id, "Your " + subject + " password is " + value);
+      }
+    }
+  });
+}
+// -------------------------------------------- //
+
+// -----------User Key Value Reminder Code Below--------------- //
+function newKeyValue(id, subject, value) {
+  var amendKeyValue = new keyValue({
+    fb_id: id,
+    subject: subject,
+    value: value
+  });
+  keyValue.findOneAndUpdate(
+    {fb_id: amendKeyValue.fb_id, subject: amendKeyValue.subject},
+    {fb_id: amendKeyValue.fb_id, subject: amendKeyValue.subject, value: amendKeyValue.value},
+    {upsert:true}, function(err, user) {
+      if (err) {
+        sendTextMessage(id, "I couldn't remember that");
+      } else {
+        console.log('User memory successfully!');
+        sendTextMessage(amendKeyValue.fb_id, "I've now remembered that for you, if you want to recall it just ask \"whats my " + amendKeyValue.subject.replace(/"/g, '') + "?\"");
+      }
+  });
+}
+
+function returnKeyValue(id, subject) {
+  keyValue.find({fb_id: id, subject: subject}, function(err, memory) {
+    if (err) {
+      console.log(err);
+    } else {
+      if (memory != null) {
+        console.log(memory + "\n");
+        var returnValue = memory[0].value;
+        returnValue = returnValue.replace(/"/g, '');
+        sendTextMessage(id, returnValue);
       }
     }
   });
