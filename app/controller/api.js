@@ -63,47 +63,80 @@ exports.fbInformation = function() {
 /* Recieve request */
 exports.handleMessage = function(req, res) {
   messaging_events = req.body.entry[0].messaging;
-
+  postback = null;
   for (i = 0; i < messaging_events.length; i++) {
 		event = req.body.entry[0].messaging[i];
 		sender = event.sender.id;
-    if (event.message && event.message.text) {
-		  	text = event.message.text;
-		  	// Handle a text message from this sender
-        switch(text) {
-          case "location":
-            setTimeZone(sender)
-            break;
-          case "subscribe":
-            subscribeUser(sender)
-            break;
-          case "unsubscribe":
-            unsubscribeUser(sender)
-            break;
-          case "subscribestatus":
-            subscribeStatus(sender)
-            break;
-          case "test memory":
-            newTimeBasedMemory(sender)
-            break;
-          case "set timezone":
-            setLocation(sender)
-            break;
-          case "whats my time zone":
-            userLocation(sender)
-            break;
-          case "test this":
-            updateUserLocation(sender, "Bristol")
-            break;
-          default: {
-            intentConfidence(sender, text);
-            //witResponse(sender, text);
+    try {
+      postback = event.postback.payload;
+    } catch (err) {}
+    if (postback == 'first_connection') {
+      fetchFacebookData(sender);
+      firstMessage(sender);
+    } else {
+      if (event.message && event.message.text) {
+  		  	text = event.message.text;
+  		  	// Handle a text message from this sender
+          switch(text) {
+            case "location":
+              setTimeZone(sender)
+              break;
+            case "subscribe":
+              subscribeUser(sender)
+              break;
+            case "unsubscribe":
+              unsubscribeUser(sender)
+              break;
+            case "subscribestatus":
+              subscribeStatus(sender)
+              break;
+            case "test memory":
+              newTimeBasedMemory(sender)
+              break;
+            case "set timezone":
+              setLocation(sender)
+              break;
+            case "whats my time zone":
+              userLocation(sender)
+              break;
+            case "test this":
+              updateUserLocation(sender, "Bristol")
+              break;
+            default: {
+              intentConfidence(sender, text);
+              //witResponse(sender, text);
+            }
           }
-        }
-  		}
+    		}
+      }
     }
 	res.sendStatus(200);
 }
+
+// not sure if this method is needed any longer as get started seems to work
+/*exports.createGetStarted = function(req, res) {
+  console.log("did this even work or get called?");
+  var data = {
+    setting_type: "call_to_actions",
+    thread_state: "new_thread",
+    call_to_actions:[{
+      payload:"first connection"
+    }]
+  };
+  callSendAPI(data);
+}
+
+curl -X POST -H "Content-Type: application/json" -d '{
+   "setting_type":"call_to_actions",
+   "thread_state":"new_thread",
+   "call_to_actions":[
+     {
+       "payload":"first_connection"
+     }
+   ]
+ }' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAASK9LRTpCQBAGuZBYYhyJZBA9ZBfxZAX8X431tDkpZCEJzFu1JjrAANKEAD4kq86kAxVdsEIPNc0BHlLHo0wCh9vZAQO6qCSTGAvZA33Wwq8mrDcZCF6J41Lu7KVIA9pSIcQAS3ZCAW5nruqj9BDH8h7PKenNJ0x3a29lv6VTWcszwZDZD"
+
+*/
 
 /* being able to send the message */
 function callSendAPI(messageData) {
@@ -120,7 +153,7 @@ function callSendAPI(messageData) {
       messageId, recipientId);
     } else {
       console.error("Unable to send message.");
-      console.error(response);
+      //console.error(response);
       console.error(error);
     }
   });
@@ -155,6 +188,30 @@ function sendTextMessage(recipientId, messageText) {
     }
   };
   callSendAPI(messageData);
+}
+
+function firstMessage(recipientId) {
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    message: {
+      text: "Hello there"
+    }
+  };
+  callSendAPI(messageData);
+}
+
+function fetchFacebookData(recipientId) {
+  console.log("inside the request");
+  request({
+    uri: properties.facebook_user_endpoint + recipientId + "fields=first_name,last_name,profile_pic,locale,timezone,gender&access_token=" + properties.facebook_token,
+    method: "POST",
+    json: {
+
+    }
+  });
+  console.log("out of the request");
 }
 
 
@@ -213,6 +270,10 @@ function intentConfidence(sender, message) {
           } catch (err) {
             sendGenericMessage(sender);
           }
+          break;
+
+        default:
+          witResponse(sender, text);
           break;
 
       }
