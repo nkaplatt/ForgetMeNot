@@ -10,6 +10,13 @@ var user = require('../model/user');
 var timeMemory = require('../model/timeBasedMemory');
 var keyValue = require('../model/rememberKeyValue');
 
+// Algolia setup
+const AlgoliaSearch = require('algoliasearch');
+const AlgoliaClient = AlgoliaSearch(properties.algolia_app_id, properties.algolia_api_key,{
+	protocol: 'https:'
+});
+const AlgoliaIndex = AlgoliaClient.initIndex(properties.algolia_index);
+
 // user information global variable
 var first_name = "";
 var id = "";
@@ -230,7 +237,7 @@ function intentConfidence(sender, message) {
   var intent = null;
   witClient.message(message, {})
   .then((data) => {
-    console.log(JSON.stringify(data) + "\n");
+    console.log('Wit response: ', JSON.stringify(data) + "\n");
     try {
       intent = JSON.stringify(data.entities.intent[0].value);
       intent = intent.replace(/"/g, '');
@@ -239,17 +246,23 @@ function intentConfidence(sender, message) {
       console.log("no intent - send generic fail message");
       sendGenericMessage(sender);
     }
-    //console.log("Confidence score " + confidence);
+    console.log("Confidence score " + confidence);
 
     if (intent != null) {
       switch(intent) {
-        case "memory":
+        case "storeMemory":
+          console.log(data);
           try {
-            var key = JSON.stringify(data.entities.subjectPair[0].value);
-            var value = JSON.stringify(data.entities.valuePair[0].value);
-            if (key != null && value != null) {
+            // Eventually we should save confidence levels to Algolia too
+            const context = data.entities.context.map(function(context) {
+              return context.value;
+            })
+            const value = data.entities.value[0].value;
+            const sentence = rewriteSentence(data._text);
+            console.log(context, value, sentence);
+            if (context != null && value != null && sentence != null) {
               console.log("Trying to process reminder \n");
-              newKeyValue(sender, key, value);
+              saveMemory(sender, context, value, sentence); // New Context-Value-Sentence method
             } else {
               console.log("I'm sorry but this couldn't be processed. \n");
             }
@@ -260,14 +273,13 @@ function intentConfidence(sender, message) {
 
         case "recall":
           console.log("this is a recall");
-          console.log('testing');
-          console.log(data.entities);
-          console.log(data.entities.recallSubject ? data.entities.recallSubject[0].value : data.entities.subjectPair[0].value);
           try {
-            var key = JSON.stringify(data.entities.recallSubject ? data.entities.recallSubject[0].value : data.entities.subjectPair[0].value);
-            console.log(key);
-            if (key != null) {
-              returnKeyValue(sender, key);
+            const context = data.entities.context.map(function(context) {
+              return context.value;
+            })
+            console.log(context);
+            if (context != null) {
+              recallMemory(sender, context);
             } else {
               console.log("I'm sorry but this couldn't be processed. \n");
             }
@@ -439,6 +451,43 @@ function returnKeyValue(id, subject) {
 // -------------------------------------------- //
 
 
+
+// ----------Context-Value-Sentence Method------------- //
+function saveMemory(sender, context, value, sentence) {
+  //Should first check whether a record with this Context-Value-Sentence combination already exists
+
+  const memory = {sender: sender, context: context, value: value, sentence: sentence};
+  AlgoliaIndex.addObject(memory, function(err, content){
+    if (err) {
+      sendTextMessage(id, "I couldn't remember that");
+    } else {
+      console.log('User memory successfully!');
+      sendTextMessage(sender, "I've now remembered that for you! " + sentence);
+    }
+  });
+}
+function recallMemory(sender, context) {
+  console.log('Searching Algolia...');
+  AlgoliaIndex.search(context.join(' '), {}, function searchDone(err, content) { // Middle parameter may not be necessary
+		if (err) {
+      console.log(err);
+		}
+
+    if (content.hits.length) {
+      memory = content.hits[0]; // Assumes first result is only option
+      console.log(memory + "\n");
+      var returnValue = memory.sentence;
+      returnValue = returnValue.replace(/"/g, ''); // Unsure whether this is necessary
+      sendTextMessage(sender, returnValue);
+    }
+	});
+}
+// -------------------------------------------- //
+
+
+
+
+
 // -----------Google API Code Below--------------- //
 /* query geolocation */
 function setTimeZone(sender) {
@@ -474,3 +523,27 @@ function setLocation(sender) {
   });
 }
 // -------------------------------------------- //
+
+
+
+function rewriteSentence(sentence) { // Currently very primitive!
+  const remember = [
+    'Remember',
+    'remember',
+    'Remind me',
+    'remind me'
+  ];
+  const my = [
+    'My ',
+    'my '
+  ];
+  remember.forEach(function(r) {
+    sentence = sentence.replace(r, '');
+  });
+  my.forEach(function(m) {
+    sentence = sentence.replace(m, 'Your ');
+  });
+  sentence = sentence.trim();
+  if(!~[".","!","?",";"].indexOf(sentence[sentence.length-1])) sentence+=".";
+  return sentence;
+}

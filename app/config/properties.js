@@ -8,8 +8,13 @@ exports.facebook_user_endpoint = 'https://graph.facebook.com/v2.6/';
 exports.google_maps_api = 'AIzaSyBUTELYTrlYEYbYaHjUiKtz5UcPXegaXlw';
 
 // Wit.ai token
-exports.wit_ai_app_id = '58fcf92b-0482-4ea3-96c0-2042789417f3';
-exports.wit_ai_server_access = 'SW6U6LVGVN5LG2SROH5XNH67PONRIQ7M';
+exports.wit_ai_app_id = '5980c5c5-fdf4-4bc6-bda5-29baae5dbc58';
+exports.wit_ai_server_access = 'BVOXTINJZCIN4JZB57YE367YV4M4FEPL';
 
 //MongoDB Atlas
 exports.atlas = 'mongodb://RogerTheShrubber:Collins1@forget-me-not-development-shard-00-00-dctrt.mongodb.net:27017,forget-me-not-development-shard-00-01-dctrt.mongodb.net:27017,forget-me-not-development-shard-00-02-dctrt.mongodb.net:27017/test?ssl=true&replicaSet=forget-me-not-development-shard-0&authSource=admin';
+
+//Algolia
+exports.algolia_api_key = '1a865896c07d9c08f3e2f14736e840bf';
+exports.algolia_app_id = 'I2VKMNNAXI';
+exports.algolia_index = 'ForgetMeNot_ContextValue';
