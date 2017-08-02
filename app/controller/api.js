@@ -244,7 +244,7 @@ function intentConfidence(sender, message) {
     if (intent != null) {
       switch(intent) {
         case "memory":
-        try {
+          try {
             var key = JSON.stringify(data.entities.subjectPair[0].value);
             var value = JSON.stringify(data.entities.valuePair[0].value);
             if (key != null && value != null) {
@@ -260,8 +260,12 @@ function intentConfidence(sender, message) {
 
         case "recall":
           console.log("this is a recall");
+          console.log('testing');
+          console.log(data.entities);
+          console.log(data.entities.recallSubject ? data.entities.recallSubject[0].value : data.entities.subjectPair[0].value);
           try {
-            var key = JSON.stringify(data.entities.recallSubject[0].value);
+            var key = JSON.stringify(data.entities.recallSubject ? data.entities.recallSubject[0].value : data.entities.subjectPair[0].value);
+            console.log(key);
             if (key != null) {
               returnKeyValue(sender, key);
             } else {
