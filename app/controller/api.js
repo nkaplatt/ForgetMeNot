@@ -467,7 +467,7 @@ function saveMemory(sender, context, value, sentence) {
   });
 }
 function recallMemory(sender, context) {
-  console.log('Searching Algolia...');
+  console.log('Searching Algolia....');
   AlgoliaIndex.search(context.join(' '), {}, function searchDone(err, content) { // Middle parameter may not be necessary
 		if (err) {
       console.log(err);
