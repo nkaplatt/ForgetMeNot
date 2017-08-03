@@ -257,12 +257,11 @@ function intentConfidence(sender, message) {
             const context = data.entities.context.map(function(context) {
               return context.value;
             })
-            const value = data.entities.value[0].value;
             const sentence = rewriteSentence(data._text);
-            console.log(context, value, sentence);
-            if (context != null && value != null && sentence != null) {
+            console.log(context, sentence);
+            if (context != null && sentence != null) {
               console.log("Trying to process reminder \n");
-              saveMemory(sender, context, value, sentence); // New Context-Value-Sentence method
+              saveMemory(sender, context, sentence); // New Context-Sentence method
             } else {
               console.log("I'm sorry but this couldn't be processed. \n");
             }
@@ -453,10 +452,10 @@ function returnKeyValue(id, subject) {
 
 
 // ----------Context-Value-Sentence Method------------- //
-function saveMemory(sender, context, value, sentence) {
+function saveMemory(sender, context, sentence) {
   //Should first check whether a record with this Context-Value-Sentence combination already exists
 
-  const memory = {sender: sender, context: context, value: value, sentence: sentence};
+  const memory = {sender: sender, context: context, sentence: sentence};
   AlgoliaIndex.addObject(memory, function(err, content){
     if (err) {
       sendTextMessage(id, "I couldn't remember that");
@@ -467,7 +466,7 @@ function saveMemory(sender, context, value, sentence) {
   });
 }
 function recallMemory(sender, context) {
-  console.log('Searching Algolia...');
+  console.log('Searching Algolia.....');
   AlgoliaIndex.search(context.join(' '), {}, function searchDone(err, content) { // Middle parameter may not be necessary
 		if (err) {
       console.log(err);
